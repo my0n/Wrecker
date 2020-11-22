@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET Core 3.1
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 3.1.404
+
+    - name: Get release version number
+      id: getVersion
+      run: echo "::set-output name=version::$(echo '${{ github.event.release.tag_name }}' | sed 's/[^a-zA-Z0-9.-]//g' | sed 's/v//')"
+      
+    - name: Install dependencies
+      run: dotnet restore
+    - name: Build
+      run: dotnet build --configuration ContinuousIntegration --no-restore -p:Version=${{ steps.getVersion.outputs.version }}
+    - name: Test
+      run: dotnet test --no-restore --verbosity normal
+    - name: Pack Clunker
+      run: dotnet pack Clunker --configuration Release --no-restore --no-build -p:Version=${{ steps.getVersion.outputs.version }}
+     
+    - name: Zip Wrecker
+      run: |
+        cd Wrecker/bin/Release/netcoreapp3.0 && zip -r Wrecker.zip .
+    
+    - name: Upload Clunker
+      uses: actions/upload-release-asset@v1.0.2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: Clunker/bin/Release/Clunker.${{ steps.getVersion.outputs.version }}.nupkg
+        asset_name: Clunker.${{ steps.getVersion.outputs.version }}.nupkg
+        asset_content_type: application/zip
+    
+    - name: Upload Wrecker
+      uses: actions/upload-release-asset@v1.0.2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: Wrecker/bin/Release/netcoreapp3.0/Wrecker.zip
+        asset_name: Wrecker.${{ steps.getVersion.outputs.version }}.zip
+        asset_content_type: application/zip
